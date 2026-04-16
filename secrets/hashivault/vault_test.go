@@ -33,10 +33,12 @@ import (
 // Then wait a few seconds for the server to be ready.
 
 const (
-	keyID1     = "test-secrets"
-	keyID2     = "test-secrets2"
-	apiAddress = "http://127.0.0.1:8200"
-	testToken  = "faketoken"
+	keyID1       = "test-secrets"
+	keyID2       = "test-secrets2"
+	apiAddress   = "http://127.0.0.1:8200"
+	testToken    = "faketoken"
+	testRoleID   = "fakeroleid"
+	testSecretID = "fakesecretid"
 )
 
 // enableTransit checks and makes sure the Transit API is enabled only once.
@@ -144,6 +146,35 @@ func fakeConnectionStringInEnv() func() {
 	}
 }
 
+func appRoleVaultConnectionStringsInEnv() func() {
+	oldRoleID := os.Getenv("VAULT_ROLE_ID")
+	oldSecretID := os.Getenv("VAULT_SECRET_ID")
+	oldServerURLVal := os.Getenv("VAULT_SERVER_URL")
+	os.Setenv("VAULT_ROLE_ID", "fakeroleid")
+	os.Setenv("VAULT_SECRET_ID", "fakesecretid")
+	os.Setenv("VAULT_SERVER_URL", "http://approlevaultserver")
+	return func() {
+		os.Setenv("VAULT_ROLE_ID", oldRoleID)
+		os.Setenv("VAULT_SECRET_ID", oldSecretID)
+		os.Setenv("VAULT_SERVER_URL", oldServerURLVal)
+	}
+}
+
+func appRoleVaultConnectionStringAndFileInEnv() func() {
+
+	oldRoleID := os.Getenv("VAULT_ROLE_ID")
+	oldSecretIDPath := os.Getenv("VAULT_SECRET_ID_PATH")
+	oldServerURLVal := os.Getenv("VAULT_SERVER_URL")
+	os.Setenv("VAULT_ROLE_ID", "fakeroleid")
+	os.Setenv("VAULT_SECRET_ID_PATH", "/test/secretidfile") // TODO: create test file
+	os.Setenv("VAULT_SERVER_URL", "http://approlevaultserver")
+	return func() {
+		os.Setenv("VAULT_ROLE_ID", oldRoleID)
+		os.Setenv("VAULT_SECRET_ID_PATH", oldSecretIDPath)
+		os.Setenv("VAULT_SERVER_URL", oldServerURLVal)
+	}
+}
+
 func alternativeConnectionStringEnvVars() func() {
 	oldURLVal := os.Getenv("VAULT_ADDR")
 	oldTokenVal := os.Getenv("VAULT_TOKEN")
@@ -160,15 +191,24 @@ func unsetConnectionStringEnvVars() func() {
 	oldTokenVal := os.Getenv("VAULT_TOKEN")
 	oldServerURLVal := os.Getenv("VAULT_SERVER_URL")
 	oldServerTokenVal := os.Getenv("VAULT_SERVER_TOKEN")
+	oldRoleID := os.Getenv("VAULT_ROLE_ID")
+	oldSecretID := os.Getenv("VAULT_SECRET_ID")
+	oldSecretIDPath := os.Getenv("VAULT_SECRET_ID_PATH")
 	os.Unsetenv("VAULT_ADDR")
 	os.Unsetenv("VAULT_TOKEN")
 	os.Unsetenv("VAULT_SERVER_URL")
 	os.Unsetenv("VAULT_SERVER_TOKEN")
+	os.Unsetenv("VAULT_ROLE_ID")
+	os.Unsetenv("VAULT_SECRET_ID")
+	os.Unsetenv("VAULT_SECRET_ID_PATH")
 	return func() {
 		os.Setenv("VAULT_ADDR", oldURLVal)
 		os.Setenv("VAULT_SERVER_URL", oldServerURLVal)
 		os.Setenv("VAULT_TOKEN", oldTokenVal)
 		os.Setenv("VAULT_SERVER_TOKEN", oldServerTokenVal)
+		os.Setenv("VAULT_ROLE_ID", oldRoleID)
+		os.Setenv("VAULT_SECRET_ID", oldSecretID)
+		os.Setenv("VAULT_SECRET_ID_PATH", oldSecretIDPath)
 	}
 }
 

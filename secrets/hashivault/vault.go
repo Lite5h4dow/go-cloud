@@ -41,6 +41,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/api/auth/approle"
 	"gocloud.dev/gcerrors"
 	"gocloud.dev/secrets"
 )
@@ -90,6 +91,51 @@ func getVaultURL() (string, error) {
 	return "", errors.New("neither VAULT_SERVER_URL nor VAULT_ADDR environment variables are set")
 }
 
+// getVaultAppRoleToken will fetch the token from the server if VAULT_ROLE_ID and VAULT_SECRET_ID
+// environment variables are present
+func getVaultAppRoleToken(context context.Context) (string, error) {
+	vaultRoleId := os.Getenv("VAULT_ROLE_ID")
+	vaultSecretId := os.Getenv("VAULT_SECRET_ID")
+	vaultSecretIdPath := os.Getenv("VAULT_SECRET_ID_PATH")
+
+	vaultSecretPresent := (vaultSecretId == "" && vaultSecretIdPath == "")
+
+	if vaultRoleId == "" || (vaultSecretPresent) {
+		return "", nil
+	}
+
+	serverURL, err := getVaultURL()
+	if err != nil {
+		return "", err
+	}
+
+	c, err := api.NewClient(&api.Config{
+		Address: serverURL,
+	})
+
+	secretId := &approle.SecretID{
+		FromFile:   vaultSecretIdPath,
+		FromString: vaultSecretId,
+	}
+
+	appRoleAuth, err := approle.NewAppRoleAuth(vaultRoleId, secretId)
+
+	if err != nil {
+		return "", err
+	}
+
+	authInfo, err := c.Auth().Login(context, appRoleAuth)
+	if err != nil {
+		return "", err
+	}
+
+	if authInfo == nil {
+		return "", fmt.Errorf("no authentication info returned after login attempt")
+	}
+
+	return authInfo.Auth.ClientToken, nil
+}
+
 // getVaultToken ensures that we check both VAULT_SERVER_TOKEN and VAULT_TOKEN environment
 // variables for the API token for vault. VAULT_SERVER_TOKEN takes precedence over VAULT_TOKEN.
 // If neither environment variables are found, then we return an empty string as token is not required.
@@ -122,7 +168,21 @@ func (o *defaultDialer) OpenKeeperURL(ctx context.Context, u *url.URL) (*secrets
 			o.err = err
 			return
 		}
-		token := getVaultToken()
+		apiToken := getVaultToken()
+		appRoleToken, err := getVaultAppRoleToken(ctx)
+		var token string = ""
+
+		if err != nil && apiToken == "" {
+			o.err = err
+			return
+		}
+
+		if apiToken != "" {
+			token = apiToken
+		} else if appRoleToken != "" {
+			token = appRoleToken
+		}
+
 		cfg := Config{Token: token, APIConfig: api.Config{Address: serverURL}}
 		client, err := Dial(ctx, &cfg)
 		if err != nil {
